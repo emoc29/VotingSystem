@@ -20,7 +20,10 @@ contract VotingSystem {
     mapping (address => Voter) public voters;
 
     address rewarded_address;
+
+    uint num_of_voted_address;
     address[] voted_address;
+
     bool voting_period_ended = false;
     uint num_of_choices = 0;
 
@@ -43,6 +46,7 @@ contract VotingSystem {
             choices.push(init);
             num_of_choices++;
         }
+        num_of_voted_address = 0;
         startTime = block.timestamp + _timeBeforeVotingStartInSecs;
         endTime = startTime + _votingDurationInSecs;
         voting_period_ended = false;
@@ -72,7 +76,13 @@ contract VotingSystem {
             }
             num_of_choices++;
         }
-        
+
+        for (uint idx = 0; idx < num_of_voted_address; idx++)
+        {
+            voters[voted_address[idx]].voted = false;
+        }
+        num_of_voted_address = 0;
+
         startTime = block.timestamp + _timeBeforeVotingStartInSecs;
         endTime = startTime + _votingDurationInSecs;
         voting_period_ended = false;
@@ -96,7 +106,16 @@ contract VotingSystem {
         }
 
         choices[_choicesIdx].votersCounts += 1;
-        voted_address.push(msg.sender);
+        if (num_of_voted_address < voted_address.length)
+        {
+            voted_address[num_of_voted_address] = msg.sender;
+        }
+        else
+        {
+            voted_address.push(msg.sender);
+        }
+        
+        num_of_voted_address++;
     }
 
     function getNumberOfVote (uint _choicesIdx) public view returns (uint)
