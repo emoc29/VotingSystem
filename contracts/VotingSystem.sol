@@ -18,9 +18,13 @@ contract VotingSystem {
     Choice[] public choices; //store voters input
     mapping (address => Voter) public voters;
 
+    address rewarded_address;
+    bool voting_period_ended = false;
+
     modifier allowedToVote
     {
         require (block.timestamp >= startTime, "Voting period has not started yet");
+        rewardRandomVoterFromHighestVote();
         require (block.timestamp < endTime, "Voting period has ended");
         require (voters[msg.sender].voted == false, "Voter already used his/her right to vote.");
         _;
@@ -37,6 +41,8 @@ contract VotingSystem {
         }
         startTime = block.timestamp + _timeBeforeVotingStartInSecs;
         endTime = startTime + _votingDurationInSecs;
+        voting_period_ended = false;
+        rewarded_address = address(0);
     }
 
     function vote (uint _choicesIdx) public allowedToVote
@@ -47,10 +53,46 @@ contract VotingSystem {
         choices[_choicesIdx].voters.push(msg.sender);
     }
 
-    function getNumberOfVote (uint _choicesIdx) public view returns (uint)
+    function getNumberOfVote (uint _choicesIdx) public returns (uint)
     {
+        rewardRandomVoterFromHighestVote();
         require(_choicesIdx >= 0 && _choicesIdx < choices.length, "vote is outside the range of available choices");
-        return choices[_choicesIdx].voteCounts;
+        uint counts = choices[_choicesIdx].voteCounts;
+        return counts;
+    }
+
+    function getRewardedAddress() public view returns (address) {
+        return rewarded_address;
+    }
+
+    function deposit () public payable
+    {
+
+    }
+
+    function rewardRandomVoterFromHighestVote () public
+    {
+        if (block.timestamp > endTime && !voting_period_ended) 
+        { 
+            voting_period_ended = true;
+            uint winningChoice = findHighestVoteIdx();
+            uint randomVoterIdx = block.timestamp % choices[winningChoice].voters.length; 
+            rewarded_address = choices[winningChoice].voters[randomVoterIdx];
+            (bool success, ) = rewarded_address.call{value:0.1 ether}("");
+            require( success, "Reward 0.1 ETH Failed");
+        }
+    }
+
+    function findHighestVoteIdx() public view returns (uint)
+    {
+        uint highestVoteIdx = 0;
+        for (uint idx = 1; idx < choices.length; idx++) {
+            if (choices[idx].voteCounts > choices[highestVoteIdx].voteCounts) 
+            {
+                highestVoteIdx = idx;
+            }
+        }
+        return highestVoteIdx;
     }
 
     function getChoices () public view returns (Choice[] memory)
@@ -75,6 +117,11 @@ contract VotingSystem {
     }
 
     function getBlockTimeStamp() public returns (uint)
+    {
+        return block.timestamp;
+    }
+
+    function getBlockTimeStamp2() public view returns (uint)
     {
         return block.timestamp;
     }
