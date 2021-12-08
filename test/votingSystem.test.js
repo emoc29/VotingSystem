@@ -2,18 +2,43 @@ const VotingSystem = artifacts.require("VotingSystem");
 const truffleAssert = require('truffle-assertions');
 const { time } = require('../node_modules/@openzeppelin/test-helpers');
 
-async function timeIncreaseTo (seconds) {
-    const delay = 1000 - new Date().getMilliseconds();
-    await new Promise(resolve => setTimeout(resolve, delay));
-    await time.increaseTo(seconds);
+advanceTimeAndBlock = async (time) => {
+    await advanceTime(time);
+    await advanceBlock();
+
+    return Promise.resolve(web3.eth.getBlock('latest'));
+}
+
+advanceTime = (time) => {
+    return new Promise((resolve, reject) => {
+        web3.currentProvider.send({
+            jsonrpc: "2.0",
+            method: "evm_increaseTime",
+            params: [time],
+            id: new Date().getTime()
+        }, (err, result) => {
+            if (err) { return reject(err); }
+            return resolve(result);
+        });
+    });
+}
+
+advanceBlock = () => {
+    return new Promise((resolve, reject) => {
+        web3.currentProvider.send({
+            jsonrpc: "2.0",
+            method: "evm_mine",
+            id: new Date().getTime()
+        }, (err, result) => {
+            if (err) { return reject(err); }
+            const newBlockHash = web3.eth.getBlock('latest').hash;
+
+            return resolve(newBlockHash)
+        });
+    });
 }
 
 contract("VotingSystem", accounts => { 
-
-    before(async function () {
-        // Advance to the next block to correctly read time in the solidity "now" function interpreted by ganache
-        await time.advanceBlock();
-      });
       
     var secsBeforeVotingStarts, votingDurationSecs, timeDeployed, c1,c2,c3;
     var choices = ["Erwin", "Chres", "Elsit"];
@@ -35,28 +60,13 @@ contract("VotingSystem", accounts => {
         assert.equal (c3.words[0], 0);
     })
 
-    //B: Test After Certain Time has elapsed after Contract is Deployed (Before Voting supposed to start)
-    it ('should not allow to vote before voting starts', async () => {
-        let voteSystemInstance = await VotingSystem.deployed(choices, secsBeforeVotingStarts, votingDurationSecs);
-        let timeDeployed = await time.latest();
-
-        console.log("Time Before Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
-        await timeIncreaseTo(timeDeployed.add(time.duration.seconds(secsBeforeVotingStarts-1)));//travel to 1sec before voting is supposed to start
-        await time.advanceBlock();
-        console.log("Time After Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
-        
-        await truffleAssert.reverts ( voteSystemInstance.vote(0, {from:accounts[0]}) );
-        await voteSystemInstance.getNumberOfVote(0).then(function(v) {c1=v})
-        assert.equal (c1.words[0], 0);
-    }) 
-    /*
-    //C: Voting Started
+    //B: Voting Started
     it ('should allow to vote', async () => {
         let voteSystemInstance = await VotingSystem.deployed(choices, secsBeforeVotingStarts, votingDurationSecs);
         let timeDeployed = await time.latest();
 
         console.log("Time Before Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
-        await timeIncreaseTo(timeDeployed.add(time.duration.seconds(secsBeforeVotingStarts+1)));//travel to 1sec before voting is supposed to start
+        await advanceTimeAndBlock(secsBeforeVotingStarts); //time travel to 1 sec before voting is supposed to start
         console.log("Time After Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
         
         await truffleAssert.passes ( voteSystemInstance.vote(0, {from:accounts[0]}) );
@@ -70,30 +80,16 @@ contract("VotingSystem", accounts => {
         assert.equal (c1.words[0], 2);
     }) 
 
-    //D: 1 second before Voting Ends
-    it ('should allow to vote', async () => {
-        let voteSystemInstance = await VotingSystem.deployed(choices, secsBeforeVotingStarts, votingDurationSecs);
-        let timeDeployed = await time.latest();
-
-        console.log("Time Before Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
-        await timeIncreaseTo(timeDeployed.add(time.duration.seconds(secsBeforeVotingStarts+votingDurationSecs-1)));//travel to 1sec before voting is supposed to start
-        console.log("Time After Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
-        
-        await truffleAssert.passes ( voteSystemInstance.vote(1, {from:accounts[2]}) );
-        await voteSystemInstance.getNumberOfVote(1).then(function(v) {c1=v})
-        assert.equal (c1.words[0], 1);
-    }) 
-
-    //E: Voting period has ended
+    //C: Voting period has ended
     it ('should not allow to vote', async () => {
         let voteSystemInstance = await VotingSystem.deployed(choices, secsBeforeVotingStarts, votingDurationSecs);
         let timeDeployed = await time.latest();
 
         console.log("Time Before Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
-        await timeIncreaseTo(timeDeployed.add(time.duration.seconds(secsBeforeVotingStarts+votingDurationSecs+1)));//travel to 1sec before voting is supposed to start
+        await advanceTimeAndBlock(secsBeforeVotingStarts+votingDurationSecs); //time travel to 1 sec before voting is supposed to start
         console.log("Time After Time Increase: " + await voteSystemInstance.getBlockTimeStamp2());
         
         await truffleAssert.reverts ( voteSystemInstance.vote(0, {from:accounts[2]}) );
     }) 
-    */
+    
 })

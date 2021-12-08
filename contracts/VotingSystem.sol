@@ -53,9 +53,8 @@ contract VotingSystem {
         choices[_choicesIdx].voters.push(msg.sender);
     }
 
-    function getNumberOfVote (uint _choicesIdx) public returns (uint)
+    function getNumberOfVote (uint _choicesIdx) public view returns (uint)
     {
-        rewardRandomVoterFromHighestVote();
         require(_choicesIdx >= 0 && _choicesIdx < choices.length, "vote is outside the range of available choices");
         uint counts = choices[_choicesIdx].voteCounts;
         return counts;
